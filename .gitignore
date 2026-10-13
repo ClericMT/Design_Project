@@ -1,0 +1,13 @@
+# Visual Studio temporary files
+.vs/
+*.suo
+*.VC.db
+*.VC.opendb
+*.ipch
+*.vsidx
+
+# Build output
+Debug/
+Release/
+x64/
+x86/
