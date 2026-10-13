@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 // ANSI font definitions
+
 #define RESET "\033[0m"
 #define cls "\033[1;1H\033[2J" // clear console screen
 // Text Font face
@@ -11,7 +12,7 @@
 #define under "\033[4m" // underlined text
 #define flash "\033[5m" // flash text (red if not supported)
 #define invert "\033[7m" // inverted background and text colour
-
+// Font colour
 #define BLK "\033[30m" // Black text
 #define RED "\033[31m" // Red text
 #define BLDRED "\033[1;31m" // Bold Red text
@@ -21,7 +22,6 @@
 #define BLDYEL "\033[1;33m" // Bold Red text
 #define WHT "\033[37m" // White/Gray text
 #define BWHT "\033[97m" // Bright White (Default colour)
-
 // Background colour
 #define blk "\033[40m" // Black background (Default colour)
 #define red "\033[41m" // Red background
@@ -339,9 +339,9 @@ void singleStepState(Status_I* status) {
 int main(void) {
     // Init intersection 1
     Status_I I1_status = { 
-        1, 1, 0, 
-        R, R, R, R, R, R, 
-        0, 0, 0, 0 
+        1, 1, 0,            // ID, active, mode
+        R, R, R, R, R, R,   // Light states
+        0, 0, 0, 0          // Sensor states
     };
 
     // Print status once
