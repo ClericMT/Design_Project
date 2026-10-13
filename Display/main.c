@@ -3,6 +3,71 @@
 #include <stdlib.h>
 #include <conio.h>
 
+/*
+README:
+
+Operational Modes: FIXED / SENSOR-DRIVEN / MANUAL-OVERRIDE
+
+12 States in total:
+    - 3 States for north/south straight-left traffic pedestrians
+    - 3 States for north/south right traffic
+    - 3 States for east/west straight-left traffic and pedestrians
+    - 3 States for east/west right traffic
+
+Fixed mode operation:
+    - State machine cycles through states at fixed intervals
+    - Ignores vehicle detections and pedestrian crossing requests
+    - Intersection defaults to fixed mode if comm. failure with central control
+
+Sensor driven mode:
+    - Straight-left states (EW/NS) are held until vehicle or pedestrian detected at adjacent road/s
+    - When detected, state machine cycles as per fixed operation mode until next straight-left state
+    - Communication failure or change to FIXED mode sends state machine back into FIXED mode
+
+Controls:
+    '1': FIXED MODE
+    '2': SENSOR MODE
+    '3': MANUAL OVERRIDE MODE
+    'a': Toggle status online/offline
+    'q': Exit program
+    'n': Vehicle approaches intersection from North/South
+    'N': Pedestrian approaches intersection from North/South
+    'e': Vehicle approaches intersection from East/West
+    'E': Pedestrian approaches intersection from East/West
+
+Scenarios:
+    FIXED MODE, Online:
+        - Traffic lights cycle at fixed intervals
+    SENSOR MODE, Online:
+        - Traffic lights hold at straight-left green light states until adjacent traffic detected
+        - Operates as per FIXED MODE for all other states
+        - Vehicle/Pedestrian detection remains on until relevant straight-left state is reached
+        - If state = north/south straight-left green light and north/south vehichle/ped. detected, 
+          assume they are serviced instantly
+    FIXED MODE, Offline:
+        - Communication failure with central control, continue operating as normal
+    SENSOR MODE, Offline:
+        - Communication failure with central control, switch to FIXED MODE
+
+Assumptions:
+    - For each intersection: 
+        - All North-South Straight-left lights  (2x3 total) are connected to same circuit
+        - All East-West Straight-left lights    (2x3 total) are connected to same circuit
+        - All North-South Right-turn lights     (2x3 total) are connected to same circuit
+        - All East-West Right-turn lights       (2x3 total) are connected to same circuit
+        - All North-South Pedestrian Lights     (4x2 total) are connected to same circuit
+        - All East-West Pedestrian Lights       (4x2 total) are connected to same circuit
+    - Total of 40 Lights per intersection
+
+To Do:
+    - Implement railway system and second intersection (and inc. in display output)
+    - Deconstruct program into separate nodes / processes / threads
+    - Implement real-time interprocess communication (IPC native messaging)
+    - Safeguard shared variabls with mutex/semaphores
+    - Maybe add ASCII art of traffic intersections
+    - Create unit tests
+*/
+
 // ANSI font definitions
 
 #define RESET "\033[0m"
@@ -125,14 +190,25 @@ void printIntersectionStatus(const IntersectionStatus* status) {
     printf("  %-25s %s\n", "Sensor", "Detected");
     printf("-------------------------------------------------------\n");
 
-    printf("  %-25s %s\n", "NS Vehicle",
-        status->NS_Vehicle ? "Vehicle Detected" : "No Vehicle");
-    printf("  %-25s %s\n", "EW Vehicle",
-        status->EW_Vehicle ? "Vehicle Detected" : "No Vehicle");
-    printf("  %-25s %s\n", "NS Pedestrian Request",
-        status->NS_Ped ? "Pedestrian Request" : "No Pedestrian");
-    printf("  %-25s %s\n", "EW Pedestrian Request",
-        status->EW_Ped ? "Pedestrian Request" : "No Pedestrian");
+    printf("  %-25s %s%s%s\n", "NS Vehicle",
+        status->NS_Vehicle ? BLDGRN : RESET,
+        status->NS_Vehicle ? "Vehicle Detected" : "No Vehicle",
+        RESET);
+
+    printf("  %-25s %s%s%s\n", "EW Vehicle",
+        status->EW_Vehicle ? BLDGRN : RESET,
+        status->EW_Vehicle ? "Vehicle Detected" : "No Vehicle",
+        RESET);
+
+    printf("  %-25s %s%s%s\n", "NS Pedestrian Request",
+        status->NS_Ped ? BLDGRN : RESET,
+        status->NS_Ped ? "Pedestrian Request" : "No Pedestrian",
+        RESET);
+
+    printf("  %-25s %s%s%s\n", "EW Pedestrian Request",
+        status->EW_Ped ? BLDGRN : RESET,
+        status->EW_Ped ? "Pedestrian Request" : "No Pedestrian",
+        RESET);
 
     printf("=======================================================\n");
 }
@@ -324,8 +400,8 @@ void State11(IntersectionStatus* status) { // All lights = Red
 void sensorThread(IntersectionStatus* status) {
     int waiting = 1;
     char key;
-    while (waiting) {
-        if (_kbhit()) {
+    while (waiting && status->mode == SENSOR_MODE && status->active == 1) { // ensure if exit out of sensor mode -> break loop
+        if (_kbhit()) { 
             key = _getch();
 
             switch (key) {
