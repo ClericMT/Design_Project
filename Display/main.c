@@ -49,6 +49,55 @@ Scenarios:
     SENSOR MODE, Offline:
         - Communication failure with central control, switch to FIXED MODE
 
+States:
+    0:  All East-West Right Turn lights are             GREEN 
+                           All other lights:            RED
+        NEXT STATE: After 2 seconds
+
+    1:  All East-West Right Turn lights are:            YELLOW 
+                           All other lights:            RED
+        NEXT STATE: After 1 second
+
+    2:                     All lights are:              RED
+        NEXT STATE: After 1 second
+
+    3:  All East-West Straight-Left lights are:         GREEN
+                           All other lights:            RED
+        NEXT STATE: 
+            FIXED_MODE:     After 2 seconds
+            SENSOR_MODE:    When adjacent traffic/ped. detected
+
+    4:  All East-West Straight-Left lights are:         YELLOW
+                           All other lights:            RED
+        NEXT STATE: After 1 second
+
+    5:                      All lights are:             RED
+        NEXT STATE: After 1 second
+
+    6:  All North-South Right Turn lights are:          GREEN
+                           All other lights:            RED
+        NEXT STATE: After 2 seconds
+
+    7:  All North-South Right Turn lights are:          YELLOW
+                           All other lights:            RED
+        NEXT STATE: After 1 second
+
+    8:                      All lights are:             RED
+        NEXT STATE: After 1 second
+
+    9:  All North-South Straight-Left lights are:       GREEN
+                           All other lights:            RED
+        NEXT STATE: 
+            FIXED_MODE:     After 2 seconds
+            SENSOR_MODE:    When adjacent traffic/ped. detected
+
+    10: All North-South Straight-Left lights are:       YELLOW
+                           All other lights:            RED
+        NEXT STATE: After 1 second
+
+    11:                     All lights are:             RED
+        NEXT STATE: After 1 second
+
 Assumptions:
     - For each intersection: 
         - All North-South Straight-left lights  (2x3 total) are connected to same circuit
