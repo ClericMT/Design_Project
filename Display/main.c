@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include <stdlib.h>
+#include <conio.h>
 
 // ANSI font definitions
 
@@ -71,11 +72,12 @@ typedef struct {
     int EW_Vehicle;
     int NS_Ped;
     int EW_Ped;
-} Status_I;
+} IntersectionStatus;
 
 // Prints all the info for one intersection
-void printStatus_I(const Status_I* status) {
-    system("cls");
+void printIntersectionStatus(const IntersectionStatus* status) {
+    //printf(CLS); // ubuntu version of clear screen
+    system("cls"); // windows version
 
     printf(bold);
     printf("=======================================================\n");
@@ -135,9 +137,11 @@ void printStatus_I(const Status_I* status) {
     printf("=======================================================\n");
 }
 
+void sensorThread(IntersectionStatus* status);
+
 int state = 0; // current state (TODO: maybe should be in main passed by ref)
 
-void State0(Status_I *status) { // East-West Right-Turn = Green
+void State0(IntersectionStatus *status) { // East-West Right-Turn = Green
     // update status
     status->NSRLight    = R;
     status->NSSLight    = R;
@@ -146,12 +150,14 @@ void State0(Status_I *status) { // East-West Right-Turn = Green
     status->NSPedLight  = R;
     status->EWPedLight  = R;
 
-    printStatus_I(status);      // update status display
+    printIntersectionStatus(status);      // update status display
+
     Sleep(2000);                // delay 2 seconds
+ 
     state = 1;
 }
 
-void State1(Status_I* status) { // East-West Right-Turn = Yellow
+void State1(IntersectionStatus* status) { // East-West Right-Turn = Yellow
     status->NSRLight    = R;
     status->NSSLight    = R;
     status->EWSLight    = R;
@@ -159,12 +165,12 @@ void State1(Status_I* status) { // East-West Right-Turn = Yellow
     status->NSPedLight  = R;
     status->EWPedLight  = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 2;
 }
 
-void State2(Status_I* status) { // All lights = Red
+void State2(IntersectionStatus* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -172,12 +178,12 @@ void State2(Status_I* status) { // All lights = Red
     status->NSPedLight = R;
     status->EWPedLight = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 3;
 }
 
-void State3(Status_I* status) { // East-West Straight-Left/Pedestrian = Green
+void State3(IntersectionStatus* status) { // East-West Straight-Left/Pedestrian = Green
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = G;
@@ -185,12 +191,21 @@ void State3(Status_I* status) { // East-West Straight-Left/Pedestrian = Green
     status->NSPedLight = R;
     status->EWPedLight = G;
 
-    printStatus_I(status);
+    // reset east/west sensors as vehichles/ped. are being serviced
+    status->EW_Vehicle = 0;
+    status->EW_Ped = 0;
+
+    printIntersectionStatus(status);
+
+    // Only wait if in sensor operation mode or NS vehicle / pedestrian detected
+    if (status->mode != FIXED_MODE && !(status->NS_Vehicle) && !(status->NS_Ped) && status->active) {
+        sensorThread(status); // wait
+    }
     Sleep(2000);
     state = 4;
 }
 
-void State4(Status_I* status) { // East-West Straight-Left/Pedestrian = Yellow
+void State4(IntersectionStatus* status) { // East-West Straight-Left/Pedestrian = Yellow
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = Y;
@@ -198,12 +213,12 @@ void State4(Status_I* status) { // East-West Straight-Left/Pedestrian = Yellow
     status->NSPedLight = R;
     status->EWPedLight = Y;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 5;
 }
 
-void State5(Status_I* status) { // All lights = Red
+void State5(IntersectionStatus* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -211,12 +226,12 @@ void State5(Status_I* status) { // All lights = Red
     status->NSPedLight = R;
     status->EWPedLight = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 6;
 }
 
-void State6(Status_I* status) { // North-South Right-Turn = Green
+void State6(IntersectionStatus* status) { // North-South Right-Turn = Green
     status->NSRLight = G;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -224,12 +239,12 @@ void State6(Status_I* status) { // North-South Right-Turn = Green
     status->NSPedLight = R;
     status->EWPedLight = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(2000);
     state = 7;
 }
 
-void State7(Status_I* status) { // North-South Right-Turn = Yellow
+void State7(IntersectionStatus* status) { // North-South Right-Turn = Yellow
     status->NSRLight = Y;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -237,12 +252,12 @@ void State7(Status_I* status) { // North-South Right-Turn = Yellow
     status->NSPedLight = R;
     status->EWPedLight = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 8;
 }
 
-void State8(Status_I* status) { // All lights = Red
+void State8(IntersectionStatus* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -250,51 +265,151 @@ void State8(Status_I* status) { // All lights = Red
     status->NSPedLight = R;
     status->EWPedLight = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 9;
 }
 
-void State9(Status_I* status) { // North-South Straight-Left/Pedestrian = Green
-    status->NSRLight = R;
-    status->NSSLight = G;
-    status->EWSLight = R;
-    status->EWRLight = R;
-    status->NSPedLight = G;
-    status->EWPedLight = R;
+void State9(IntersectionStatus* status) { // North-South Straight-Left/Pedestrian = Green
+    status->NSRLight    = R;
+    status->NSSLight    = G;
+    status->EWSLight    = R;
+    status->EWRLight    = R;
+    status->NSPedLight  = G;
+    status->EWPedLight  = R;
 
-    printStatus_I(status);
+    // reset north/south sensors as vehicles/ped. have been serviced
+    status->NS_Vehicle = 0;
+    status->NS_Ped = 0;
+
+    printIntersectionStatus(status);
+
+    // Only wait if in sensor operation mode or EW vehicle / pedestrian detected
+    // If no communication (status inactive) then operate in fixed mode
+    if (status->mode != FIXED_MODE && !(status->EW_Vehicle) && !(status->EW_Ped) && status->active) {
+        sensorThread(status); // wait
+    }
     Sleep(2000);
+
     state = 10;
 }
 
-void State10(Status_I* status) { // North-South Straight-Left/Pedestrian = Yellow
-    status->NSRLight    = R; status->EWSLight   = R;
-    status->NSSLight    = Y; status->EWRLight   = R;
-    status->NSPedLight  = Y; status->EWPedLight = R;
+void State10(IntersectionStatus* status) { // North-South Straight-Left/Pedestrian = Yellow
+    status->NSRLight    = R;
+    status->NSSLight    = Y;
+    status->EWSLight    = R; 
+    status->EWRLight    = R;
+    status->NSPedLight  = Y; 
+    status->EWPedLight  = R;
     
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 11;
 }
 
-void State11(Status_I* status) { // All lights = Red
-    status->NSRLight = R;
-    status->NSSLight = R;
-    status->EWSLight = R;
-    status->EWRLight = R;
-    status->NSPedLight = R;
-    status->EWPedLight = R;
+void State11(IntersectionStatus* status) { // All lights = Red
+    status->NSRLight    = R;
+    status->NSSLight    = R;
+    status->EWSLight    = R;
+    status->EWRLight    = R;
+    status->NSPedLight  = R;
+    status->EWPedLight  = R;
 
-    printStatus_I(status);
+    printIntersectionStatus(status);
     Sleep(1000);
     state = 0;
 }
 
+// TODO: timer expires
+void sensorThread(IntersectionStatus* status) {
+    int waiting = 1;
+    char key;
+    while (waiting) {
+        if (_kbhit()) {
+            key = _getch();
+
+            switch (key) {
+            case '1':
+                status->mode = FIXED_MODE;
+                break;
+            case '2':
+                status->mode = SENSOR_MODE;
+                break;
+            case '3':
+                status->mode = OVERRIDE_MODE;
+                break;
+            case 'n':                                               // north/south vehicle detected
+                if (status->NSSLight != G) status->NS_Vehicle = 1;  // Assume NS vehicles serviced instantly if NSSLight = G
+                printIntersectionStatus(status);
+                if (status->EWSLight == G) waiting = 0;             // Car approaches east/west -> goto next state
+                break;
+            case 'e':                                               // east/west vehicle detected
+                if (status->EWSLight != G) status->EW_Vehicle = 1;  // Assume EW vehicles serviced instantly if EWSLight = G
+                printIntersectionStatus(status);
+                if (status->NSSLight == G) waiting = 0;             // Car approaches north/south -> goto next state
+                break;
+            case 'N':                                               // north/south ped. detected
+                if (status->NSSLight != G) status->NS_Ped = 1;      // Assume NS peds. serviced instantly if NSSLight = G
+                printIntersectionStatus(status);
+                if (status->EWSLight == G) waiting = 0;             // Ped. approaches east/west -> goto next state
+                break;
+            case 'E':                                               // east/west ped. detected
+                if (status->EWSLight != G) status->EW_Ped = 1;      // Assume EW peds. serviced instantly if EWSLight = G
+                printIntersectionStatus(status);
+                if (status->NSSLight == G) waiting = 0;             // Ped. approaches north/south -> goto next state
+                break;
+            case 'a':                                               // Toggle intersection active      
+                status->active = !(status->active);
+                waiting = 0;
+                break;
+            case 'q':                                               // shutdown
+                status->active = !(status->active);
+                waiting = 0;
+                break;
+            }
+        }
+    }
+}
+
 // Step through state machine
-void singleStepState(Status_I* status) { 
+void singleStepState(IntersectionStatus* status) { 
     int IO = 1;
+    char key;
     while (IO) {
+        if (_kbhit()) {
+            key = _getch();
+
+            switch (key) {
+            case '1':
+                status->mode = FIXED_MODE;
+                break;
+            case '2':
+                status->mode = SENSOR_MODE;
+                break;
+            case '3':
+                status->mode = OVERRIDE_MODE;
+                break;
+            case 'n':
+                status->NS_Vehicle = 1;
+                break;
+            case 'e':
+                status->EW_Vehicle = 1;
+                break;
+            case 'N':
+                status->NS_Ped = 1;
+                break;
+            case 'E':
+                status->EW_Ped = 1;
+                break;
+            case 'a':
+                status->active = !(status->active);
+                break;
+            case 'q':
+                IO = 0;
+                break;
+            }
+        }
+        Sleep(50);
         switch (state) {
         case 0:
             State0(status);
@@ -338,17 +453,21 @@ void singleStepState(Status_I* status) {
 
 int main(void) {
     // Init intersection 1
-    Status_I I1_status = { 
+    IntersectionStatus I1_status = { 
         1, 1, 0,            // ID, active, mode
         R, R, R, R, R, R,   // Light states
         0, 0, 0, 0          // Sensor states
     };
 
     // Print status once
-    printStatus_I(&I1_status);
-
-    // Run state machine
+    printIntersectionStatus(&I1_status);
+    char key;
+    int running = 1;
     singleStepState(&I1_status);
+    
+
+    printf("\nExiting system...\n");
+    Sleep(2000);
 
     return 0;
 }
