@@ -24,6 +24,21 @@
 #define grn "\033[42m" // Green background
 #define yel "\033[43m" // Yellow background
 
+// Set ANSI colour for status based on current state
+const char* signalColour(char signal) {
+    switch (signal) {
+    case 'R': return RED;  // Red
+    case 'Y': return YEL;  // Yellow
+    case 'G': return GRN;  // Green
+    default:  return regular;   // Default
+    }
+}
+
+// print signal status formatted and coloured
+#define PRINT_SIGNAL(label, signal) \
+    printf("  %-25s %s%c\033[0m\n", label, signalColour(signal), signal)
+
+// traffic signal state
 typedef enum {
     R = 'R', Y = 'Y', G = 'G'
 } TrafficSignal;
@@ -48,8 +63,8 @@ typedef struct {
 
 
 void printStatus_I(const Status_I* status) {
-    printf(cls);  // Clear console
-
+    //printf(cls);  // Clear console
+    system("cls"); // Windows Clear Console
     printf(bold);
     printf("========================================\n");
     printf("          INTERSECTION I%d\n", status->ID);
@@ -62,23 +77,22 @@ void printStatus_I(const Status_I* status) {
     printf("----------------------------------------\n");
     printf("  %-25s %s\n", "Signal", "State");
     printf("----------------------------------------\n");
-    printf("  %-25s %c\n", "NS Straight/Left", status->NSSLight);
-    printf("  %-25s %c\n", "NS Right", status->NSRLight);
-    printf("  %-25s %c\n", "EW Straight/Left", status->EWSLight);
-    printf("  %-25s %c\n", "EW Right", status->EWRLight);
-    printf("  %-25s %c\n", "NS Pedestrian", status->NSPedLight);
-    printf("  %-25s %c\n", "EW Pedestrian", status->EWPedLight);
 
-    printf(bold);
+    PRINT_SIGNAL("NS Straight/Left",    status->NSSLight);
+    PRINT_SIGNAL("NS Right",            status->NSRLight);
+    PRINT_SIGNAL("EW Straight/Left",    status->EWSLight);
+    PRINT_SIGNAL("EW Right",            status->EWRLight);
+    PRINT_SIGNAL("NS Pedestrian",       status->NSPedLight);
+    PRINT_SIGNAL("EW Pedestrian",       status->EWPedLight);
+
     printf("\n  SENSORS\n");
     printf("----------------------------------------\n");
     printf("  %-25s %s\n", "Sensor", "Detected");
-    printf(regular);
     printf("----------------------------------------\n");
-    printf("  %-25s %d\n", "NS Vehicle", status->NS_Vehicle);
-    printf("  %-25s %d\n", "EW Vehicle", status->EW_Vehicle);
-    printf("  %-25s %d\n", "NS Pedestrian Request", status->NS_Ped);
-    printf("  %-25s %d\n", "EW Pedestrian Request", status->EW_Ped);
+    printf("  %-25s %s\n", "NS Vehicle", status->NS_Vehicle ? "Vehicle Detected" : "No Vehicle");
+    printf("  %-25s %s\n", "EW Vehicle", status->EW_Vehicle ? "Vehicle Detected" : "No Vehicle");
+    printf("  %-25s %s\n", "NS Pedestrian Request", status->NS_Ped ? "Pedestrian Request" : "No Pedestrian");
+    printf("  %-25s %\n", "EW Pedestrian Request", status->EW_Ped ? "Pedestrian Request" : "No Pedestrian");
     printf("========================================\n");
 }
 
