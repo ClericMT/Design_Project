@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <stdlib.h>
 
+// ANSI font definitions
 #define RESET "\033[0m"
 #define cls "\033[1;1H\033[2J" // clear console screen
 // Text Font face
@@ -27,7 +28,7 @@
 #define grn "\033[42m" // Green background
 #define yel "\033[43m" // Yellow background
 
-// Set ANSI colour for status based on current state
+// Set ANSI font style for light output based on light state
 const char* signalColour(char signal) {
     switch (signal) {
     case 'R': return BLDRED;  // Red
@@ -37,7 +38,7 @@ const char* signalColour(char signal) {
     }
 }
 
-// print signal status formatted and coloured
+// print function for signal status formatted and ANSI styled
 #define PRINT_SIGNAL(label, signal) \
     printf("  %-25s %s%c\033[0m\n", label, signalColour(signal), signal)
 
@@ -46,14 +47,14 @@ typedef enum {
     R = 'R', Y = 'Y', G = 'G'
 } TrafficSignal;
 
-// Traffic mode
+// Traffic operation mode
 typedef enum {
     FIXED_MODE,
     SENSOR_MODE,
     OVERRIDE_MODE
 } Mode;
 
-// Status of lights, sensors for one intersection
+// Holds all the info for one intersection
 typedef struct {
     int ID;                     // Intersection ID (i.e I1, I2)
     int active;                 // online / offline status
@@ -72,48 +73,7 @@ typedef struct {
     int EW_Ped;
 } Status_I;
 
-
-/*void printStatus_I(const Status_I* status) {
-    //printf(cls);  // Clear console
-    system("cls"); // Windows Clear Console
-    printf(bold);
-    // printf(flash); // not sure if this works in linux
-    printf("========================================\n");
-    printf("          INTERSECTION I%d\n", status->ID);
-    printf("========================================\n");
-    printf("\n  %-25s %s%s%s\n", "STATUS: ", 
-        status->active ? GRN : RED,
-        status->active ? "Online" : "Offline",
-        regular);
-    printf("  %-25s %s\n", "MODE",
-        status->mode == 0 ? "FIXED" :
-        status->mode == 1 ? "SENSOR DRIVEN" :
-        "MANUAL OVERRIDE");
-    printf("\n  %sTRAFFIC SIGNALS%s\n", bold, regular);
-    printf("----------------------------------------\n");
-    printf("  %-25s %s\n", "Signal", "State");
-    printf("----------------------------------------\n");
-
-    PRINT_SIGNAL("NS Straight/Left",    status->NSSLight);
-    PRINT_SIGNAL("NS Right",            status->NSRLight);
-    PRINT_SIGNAL("EW Straight/Left",    status->EWSLight);
-    PRINT_SIGNAL("EW Right",            status->EWRLight);
-    PRINT_SIGNAL("NS Pedestrian",       status->NSPedLight);
-    PRINT_SIGNAL("EW Pedestrian",       status->EWPedLight);
-
-    printf("\n  SENSORS\n");
-    printf("----------------------------------------\n");
-    printf("  %-25s %s\n", "Sensor", "Detected");
-    printf("----------------------------------------\n");
-    printf("  %-25s %s\n", "NS Vehicle", status->NS_Vehicle ? "Vehicle Detected" : "No Vehicle");
-    printf("  %-25s %s\n", "EW Vehicle", status->EW_Vehicle ? "Vehicle Detected" : "No Vehicle");
-    printf("  %-25s %s\n", "NS Pedestrian Request", status->NS_Ped ? "Pedestrian Request" : "No Pedestrian");
-    printf("  %-25s %s\n", "EW Pedestrian Request", status->EW_Ped ? "Pedestrian Request" : "No Pedestrian");
-    printf("========================================\n");
-}*/
-
-
-
+// Prints all the info for one intersection
 void printStatus_I(const Status_I* status) {
     system("cls");
 
@@ -175,11 +135,10 @@ void printStatus_I(const Status_I* status) {
     printf("=======================================================\n");
 }
 
+int state = 0; // current state (TODO: maybe should be in main passed by ref)
 
-
-int state = 0;
-
-void State0(Status_I *status) { // EWRG-NSxR
+void State0(Status_I *status) { // East-West Right-Turn = Green
+    // update status
     status->NSRLight    = R;
     status->NSSLight    = R;
     status->EWSLight    = R;
@@ -187,12 +146,12 @@ void State0(Status_I *status) { // EWRG-NSxR
     status->NSPedLight  = R;
     status->EWPedLight  = R;
 
-    printStatus_I(status);
-    Sleep(2000);
+    printStatus_I(status);      // update status display
+    Sleep(2000);                // delay 2 seconds
     state = 1;
 }
 
-void State1(Status_I* status) { // EWRY-NSxR
+void State1(Status_I* status) { // East-West Right-Turn = Yellow
     status->NSRLight    = R;
     status->NSSLight    = R;
     status->EWSLight    = R;
@@ -205,7 +164,7 @@ void State1(Status_I* status) { // EWRY-NSxR
     state = 2;
 }
 
-void State2(Status_I* status) { // EWxR-NSxR
+void State2(Status_I* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -218,7 +177,7 @@ void State2(Status_I* status) { // EWxR-NSxR
     state = 3;
 }
 
-void State3(Status_I* status) { // EWSG-NSxR
+void State3(Status_I* status) { // East-West Straight-Left/Pedestrian = Green
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = G;
@@ -231,7 +190,7 @@ void State3(Status_I* status) { // EWSG-NSxR
     state = 4;
 }
 
-void State4(Status_I* status) { // EWSY-NSxR
+void State4(Status_I* status) { // East-West Straight-Left/Pedestrian = Yellow
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = Y;
@@ -244,7 +203,7 @@ void State4(Status_I* status) { // EWSY-NSxR
     state = 5;
 }
 
-void State5(Status_I* status) { // EWxR-NSxR
+void State5(Status_I* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -257,7 +216,7 @@ void State5(Status_I* status) { // EWxR-NSxR
     state = 6;
 }
 
-void State6(Status_I* status) { // EWxR-NSRG
+void State6(Status_I* status) { // North-South Right-Turn = Green
     status->NSRLight = G;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -270,7 +229,7 @@ void State6(Status_I* status) { // EWxR-NSRG
     state = 7;
 }
 
-void State7(Status_I* status) { // EWxR-NSRY
+void State7(Status_I* status) { // North-South Right-Turn = Yellow
     status->NSRLight = Y;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -283,7 +242,7 @@ void State7(Status_I* status) { // EWxR-NSRY
     state = 8;
 }
 
-void State8(Status_I* status) { // EWxR-NSRR
+void State8(Status_I* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -296,7 +255,7 @@ void State8(Status_I* status) { // EWxR-NSRR
     state = 9;
 }
 
-void State9(Status_I* status) { // EWxR-NSSG
+void State9(Status_I* status) { // North-South Straight-Left/Pedestrian = Green
     status->NSRLight = R;
     status->NSSLight = G;
     status->EWSLight = R;
@@ -309,18 +268,17 @@ void State9(Status_I* status) { // EWxR-NSSG
     state = 10;
 }
 
-void State10(Status_I* status) { // EWxR-NSSY
+void State10(Status_I* status) { // North-South Straight-Left/Pedestrian = Yellow
     status->NSRLight    = R; status->EWSLight   = R;
     status->NSSLight    = Y; status->EWRLight   = R;
     status->NSPedLight  = Y; status->EWPedLight = R;
     
-
     printStatus_I(status);
     Sleep(1000);
     state = 11;
 }
 
-void State11(Status_I* status) { // EWxR-NSSR
+void State11(Status_I* status) { // All lights = Red
     status->NSRLight = R;
     status->NSSLight = R;
     status->EWSLight = R;
@@ -333,6 +291,7 @@ void State11(Status_I* status) { // EWxR-NSSR
     state = 0;
 }
 
+// Step through state machine
 void singleStepState(Status_I* status) { 
     int IO = 1;
     while (IO) {
@@ -378,14 +337,17 @@ void singleStepState(Status_I* status) {
 }
 
 int main(void) {
+    // Init intersection 1
     Status_I I1_status = { 
         1, 1, 0, 
         R, R, R, R, R, R, 
         0, 0, 0, 0 
     };
 
+    // Print status once
     printStatus_I(&I1_status);
 
+    // Run state machine
     singleStepState(&I1_status);
 
     return 0;
