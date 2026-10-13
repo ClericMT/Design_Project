@@ -6,24 +6,6 @@
 /*
 README:
 
-Operational Modes: FIXED / SENSOR-DRIVEN / MANUAL-OVERRIDE
-
-12 States in total:
-    - 3 States for north/south straight-left traffic pedestrians
-    - 3 States for north/south right traffic
-    - 3 States for east/west straight-left traffic and pedestrians
-    - 3 States for east/west right traffic
-
-Fixed mode operation:
-    - State machine cycles through states at fixed intervals
-    - Ignores vehicle detections and pedestrian crossing requests
-    - Intersection defaults to fixed mode if comm. failure with central control
-
-Sensor driven mode:
-    - Straight-left states (EW/NS) are held until vehicle or pedestrian detected at adjacent road/s
-    - When detected, state machine cycles as per fixed operation mode until next straight-left state
-    - Communication failure or change to FIXED mode sends state machine back into FIXED mode
-
 Controls:
     '1': FIXED MODE
     '2': SENSOR MODE
@@ -35,6 +17,18 @@ Controls:
     'e': Vehicle approaches intersection from East/West
     'E': Pedestrian approaches intersection from East/West
 
+Operational Modes: FIXED / SENSOR-DRIVEN / MANUAL-OVERRIDE
+
+Fixed mode operation:
+    - State machine cycles through states at fixed intervals
+    - Ignores vehicle detections and pedestrian crossing requests
+    - Intersection defaults to fixed mode if comm. failure with central control
+
+Sensor driven mode:
+    - Straight-left states (EW/NS) are held until vehicle or pedestrian detected at adjacent road/s
+    - When detected, state machine cycles as per fixed operation mode until next straight-left state
+    - Communication failure or change to FIXED mode sends state machine back into FIXED mode
+
 Scenarios:
     FIXED MODE, Online:
         - Traffic lights cycle at fixed intervals
@@ -42,12 +36,18 @@ Scenarios:
         - Traffic lights hold at straight-left green light states until adjacent traffic detected
         - Operates as per FIXED MODE for all other states
         - Vehicle/Pedestrian detection remains on until relevant straight-left state is reached
-        - If state = north/south straight-left green light and north/south vehichle/ped. detected, 
+        - If state = north/south straight-left green light and north/south vehichle/ped. detected,
           assume they are serviced instantly
     FIXED MODE, Offline:
         - Communication failure with central control, continue operating as normal
     SENSOR MODE, Offline:
         - Communication failure with central control, switch to FIXED MODE
+
+12 States in total:
+    - 3 States for north/south straight-left traffic and pedestrians
+    - 3 States for north/south right traffic
+    - 3 States for east/west straight-left traffic and pedestrians
+    - 3 States for east/west right traffic
 
 States:
     0:  All East-West Right Turn lights are             GREEN 
@@ -109,10 +109,10 @@ Assumptions:
     - Total of 40 Lights per intersection
 
 To Do:
-    - Implement railway system and second intersection (and inc. in display output)
+    - Implement railway system and second intersection (and include in display output)
     - Deconstruct program into separate nodes / processes / threads
     - Implement real-time interprocess communication (IPC native messaging)
-    - Safeguard shared variabls with mutex/semaphores
+    - Safeguard shared variables with mutex/semaphores
     - Maybe add ASCII art of traffic intersections
     - Create unit tests
 */
