@@ -10,6 +10,9 @@
 // Local attach point (on same node) for client/server located at <hostname>/dev/name/local/LocalController"
 #define ATTACH_POINT "LocalController"  // This must be the same name that is used for the client.
 
+#define MSG_SENSOR_DATA 	0x22
+#define MSG_CENTRAL_COMMAND 0x23
+
 #define BUF_SIZE 300
 
 typedef union {	  			// This replaced the standard:  union sigval
@@ -45,10 +48,63 @@ typedef struct {
     SensorData data;
 } SensorMessage;
 
+// Data received from CentralController
+typedef struct {
+    int mode;
+    int boomGateDown;
+    int boomGateConnected;
+} CentralCommand;
+
+typedef struct {
+    msg_header_t hdr;
+    int ClientID;
+    CentralCommand data;
+} CentralCommandMessage;
+
+// traffic signal state
+typedef enum {
+    R = 'R', Y = 'Y', G = 'G'
+} TrafficSignal;
+
+// Traffic Signals for local intersection
+typedef struct {
+	TrafficSignal NSSLight;
+	TrafficSignal NSRLight;
+	TrafficSignal EWSLight;
+	TrafficSignal EWRLight;
+	TrafficSignal NSPedLight;
+	TrafficSignal EWPedLight;
+} TrafficSignals;
+
+//
+typedef struct {
+    int ID;                     // Intersection ID (i.e I1, I2)
+    int active;					// Intersection online / offline status
+    CentralCommand centralCommand;
+    TrafficSignals trafficSignals;
+    SensorData sensorData;
+} IntersectionStatus;
+
+//
+typedef struct {
+	msg_header_t hdr;
+    int ID;                     // Intersection ID (i.e I1, I2)
+    int active;					// Intersection online / offline status
+    IntersectionStatus intersectionStatus;
+} IntersectionStatusMessage;
+
 typedef struct {
    msg_header_t hdr;   // Custom header
    char buf[BUF_SIZE]; // Message to send back to send back to other thread
 } my_reply;
+
+// Using a union to receive different message types (sensor, central, pulse)
+typedef union {
+    msg_header_t hdr;
+    struct _pulse pulse;
+    SensorMessage sensor;
+    CentralCommandMessage central;
+} IncomingMessage;
 
 // prototypes
 int server();
@@ -66,16 +122,27 @@ int main(int argc, char *argv[])
 
 
 
-/*** Process received sensor data ***/
-void handleSensorData(const SensorData* data)
+// Process received sensor data
+void handleSensorData(IntersectionStatus* status, const SensorData* data)
 {
+	status->sensorData = *data;
+
     printf("\nReceived sensor data:\n");
     printf("  NS Vehicle: %d\n", data->NS_Vehicle);
     printf("  EW Vehicle: %d\n", data->EW_Vehicle);
     printf("  NS Pedestrian: %d\n", data->NS_Ped);
     printf("  EW Pedestrian: %d\n", data->EW_Ped);
+}
 
-    // TODO: Update controller's sensor state
+// Process received central commands
+void handleCentralCommand(IntersectionStatus* status, const CentralCommand* command)
+{
+	status->centralCommand = *command;
+
+	printf("\nReceived CentralController command:\n");
+	printf("  Mode: %d\n", command->mode);
+	printf("  Boom gate down: %d\n", command->boomGateDown);
+	printf("  Boom gate connected: %d\n", command->boomGateConnected);
 }
 
 
@@ -97,8 +164,12 @@ void handlePulse(const struct _pulse* pulse)
 /*** Server code ***/
 int server(void)
 {
+
+	IntersectionStatus status;
+
     name_attach_t* attach;
-    SensorMessage sensorMessage = {0};
+
+    IncomingMessage msg = {0};
     my_reply replymsg = {0};
 
     int rcvid;
@@ -122,12 +193,12 @@ int server(void)
     // Main receive loop
     while (1)
     {
-        rcvid = MsgReceive(
-            attach->chid,
-            &sensorMessage,
-            sizeof(sensorMessage),
-            NULL
-        );
+    	rcvid = MsgReceive(
+    	    attach->chid,
+    	    &msg,
+    	    sizeof(msg),
+    	    NULL
+    	);
 
         // Receive error
         if (rcvid == -1)
@@ -139,34 +210,43 @@ int server(void)
         // QNX system pulse
         if (rcvid == 0)
         {
-            handlePulse((const struct _pulse*)&sensorMessage);
+            handlePulse((const struct _pulse*)&msg);
             continue;
         }
 
         // QNX connection request
-        if (sensorMessage.hdr.type == _IO_CONNECT)
+        if (msg.hdr.type == _IO_CONNECT)
         {
             MsgReply(rcvid, EOK, NULL, 0);
             continue;
         }
 
         // Unsupported QNX I/O message
-        if (sensorMessage.hdr.type > _IO_BASE &&
-            sensorMessage.hdr.type <= _IO_MAX)
+        if (msg.hdr.type > _IO_BASE &&
+            msg.hdr.type <= _IO_MAX)
         {
             MsgError(rcvid, ENOSYS);
             continue;
         }
 
         // Validate application message type
-        if (sensorMessage.hdr.type != 0x22)
+        if (msg.hdr.type != MSG_SENSOR_DATA && msg.hdr.type != MSG_CENTRAL_COMMAND)
         {
             MsgError(rcvid, ENOSYS);
             continue;
         }
 
-        // Process sensor data
-        handleSensorData(&sensorMessage.data);
+
+        switch (msg.hdr.type) {
+        case MSG_SENSOR_DATA:
+				// Process sensor data
+		        handleSensorData(&status, &msg.sensor.data);
+        		break;
+        case MSG_CENTRAL_COMMAND:
+        	// Process central commands
+			handleCentralCommand(&status, &msg.sensor.data);
+			break;
+        }
 
         // Acknowledge message
         msgnum++;
