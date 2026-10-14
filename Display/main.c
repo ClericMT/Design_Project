@@ -16,6 +16,7 @@ Controls:
     'N': Pedestrian approaches intersection from North/South
     'e': Vehicle approaches intersection from East/West
     'E': Pedestrian approaches intersection from East/West
+    't': Train approaching, boom gate activated (10 sec)
 
 Operational Modes: FIXED / SENSOR-DRIVEN / MANUAL-OVERRIDE
 
@@ -29,7 +30,7 @@ Sensor driven mode:
     - When detected, state machine cycles as per fixed operation mode until next straight-left state
     - Communication failure or change to FIXED mode sends state machine back into FIXED mode
 
-Scenarios:
+Main Scenarios:
     FIXED MODE, Online:
         - Traffic lights cycle at fixed intervals
     SENSOR MODE, Online:
@@ -42,6 +43,11 @@ Scenarios:
         - Communication failure with central control, continue operating as normal
     SENSOR MODE, Offline:
         - Communication failure with central control, switch to FIXED MODE
+    FIXED MODE or SENSOR MODE, Boomgate active:
+        - Lights transition to all red phase and wait until boomgate deactivated
+    BOOMGATE COMMUNICATION FAILURE:
+        - Restrict traffic through boomgate (cycle relevant lights to red)
+
 
 12 States in total:
     - 3 States for north/south straight-left traffic and pedestrians
@@ -108,12 +114,32 @@ Assumptions:
         - All East-West Pedestrian Lights       (4x2 total) are connected to same circuit
     - Total of 40 Lights per intersection
 
+Real-time implementation:
+    IPC messaging between nodes (lab 5)
+    POSIX message queues between processes (lab 3)
+    Mutex/Semaphores/Cond Vars for thread synchronisation/locking
+
+    - Central Control
+        - Process A (Communications)
+            - Receive IPC messages from local controllers state
+            - Send communication commands (change operation mode)
+        - Process B (Central Display)
+            - Display local intersection information / boomgate status
+    - Local Intersection Controllers
+        - Process A (State machine / Communication with Central)
+            - Thread 1: State Machine
+            - Thread 2: Central Communication
+        - Process B (Sensor input)
+            - Sensor input
+        - Process C
+            - Display output
+        
+
 To Do:
-    - Implement railway system and second intersection (and include in display output)
     - Deconstruct program into separate nodes / processes / threads
     - Implement real-time interprocess communication (IPC native messaging)
+    - Implement POSIX messaging between processes within nodes
     - Safeguard shared variables with mutex/semaphores
-    - Maybe add ASCII art of traffic intersections
     - Create unit tests
 */
 
@@ -182,10 +208,12 @@ typedef struct {
     TrafficSignal NSPedLight;
     TrafficSignal EWPedLight;
     // Sensors
-    int NS_Vehicle;            
-    int EW_Vehicle;
-    int NS_Ped;
-    int EW_Ped;
+    int NS_Vehicle;          // north/south vehicle detected   
+    int EW_Vehicle;          // east/west vehicle detected
+    int NS_Ped;              // north/south ped. crossing request
+    int EW_Ped;              // east/west ped. crossing request
+    int boomGateDown;         // 1 = down, 0 = up
+    int boomGateConnected;    // 1 = connected, 0 = disconnected
 } IntersectionStatus;
 
 // Prints all the info for one intersection
@@ -258,6 +286,19 @@ void printIntersectionStatus(const IntersectionStatus* status) {
         status->EW_Ped ? BLDGRN : RESET,
         status->EW_Ped ? "Pedestrian Request" : "No Pedestrian",
         RESET);
+    // Boom gate status
+    printf("\n  %sBOOM GATE%s\n", bold, RESET);
+    printf("-------------------------------------------------------\n");
+
+    printf("  %-25s %s%s%s\n", "Gate Position",
+        status->boomGateDown ? RED : BLDGRN,
+        status->boomGateDown ? "DOWN" : "UP",
+        RESET);
+
+    printf("  %-25s %s%s%s\n", "Communication",
+        status->boomGateConnected ? BLDGRN : RED,
+        status->boomGateConnected ? "Connected" : "Disconnected",
+        RESET);
 
     printf("=======================================================\n");
 }
@@ -304,7 +345,13 @@ void State2(IntersectionStatus* status) { // All lights = Red
     status->EWPedLight = R;
 
     printIntersectionStatus(status);
-    Sleep(1000);
+    if (status->boomGateDown) {
+        Sleep(10000); // wait for train to pass (in qnx this would be wait until boomGateDown = 0)
+        status->boomGateDown = 0; // boomgate up
+    }
+    else {
+        Sleep(1000); // normal operation
+    }
     state = 3;
 }
 
@@ -322,8 +369,8 @@ void State3(IntersectionStatus* status) { // East-West Straight-Left/Pedestrian 
 
     printIntersectionStatus(status);
 
-    // Only wait if in sensor operation mode or NS vehicle / pedestrian detected
-    if (status->mode != FIXED_MODE && !(status->NS_Vehicle) && !(status->NS_Ped) && status->active) {
+    // Only wait if in sensor operation mode or NS vehicle / pedestrian detected and boomgate not down
+    if (status->mode != FIXED_MODE && !(status->NS_Vehicle) && !(status->NS_Ped) && status->active && status->boomGateDown == 0) {
         sensorThread(status); // wait
     }
     Sleep(2000);
@@ -352,7 +399,14 @@ void State5(IntersectionStatus* status) { // All lights = Red
     status->EWPedLight = R;
 
     printIntersectionStatus(status);
-    Sleep(1000);
+
+    if (status->boomGateDown) {
+        Sleep(10000); // wait for train to pass (in qnx this would be wait until boomGateDown = 0)
+        status->boomGateDown = 0; // boomgate up
+    }
+    else {
+        Sleep(1000); // normal operation
+    }
     state = 6;
 }
 
@@ -391,6 +445,15 @@ void State8(IntersectionStatus* status) { // All lights = Red
     status->EWPedLight = R;
 
     printIntersectionStatus(status);
+
+    if (status->boomGateDown) {
+        Sleep(10000); // wait for train to pass (in qnx this would be wait until boomGateDown = 0)
+        status->boomGateDown = 0; // boomgate up
+    }
+    else {
+        Sleep(1000); // normal operation
+    }
+
     Sleep(1000);
     state = 9;
 }
@@ -409,9 +472,9 @@ void State9(IntersectionStatus* status) { // North-South Straight-Left/Pedestria
 
     printIntersectionStatus(status);
 
-    // Only wait if in sensor operation mode or EW vehicle / pedestrian detected
+    // Only wait if in sensor operation mode or EW vehicle / pedestrian detected and boomgate not down
     // If no communication (status inactive) then operate in fixed mode
-    if (status->mode != FIXED_MODE && !(status->EW_Vehicle) && !(status->EW_Ped) && status->active) {
+    if (status->mode != FIXED_MODE && !(status->EW_Vehicle) && !(status->EW_Ped) && status->active && status->boomGateDown == 0) {
         sensorThread(status); // wait
     }
     Sleep(2000);
@@ -441,11 +504,19 @@ void State11(IntersectionStatus* status) { // All lights = Red
     status->EWPedLight  = R;
 
     printIntersectionStatus(status);
+
+    if (status->boomGateDown) {
+        Sleep(10000); // wait for train to pass (in qnx this would be wait until boomGateDown = 0)
+        status->boomGateDown = 0; // boomgate up
+    }
+    else {
+        Sleep(1000); // normal operation
+    }
+
     Sleep(1000);
     state = 0;
 }
 
-// TODO: timer expires
 void sensorThread(IntersectionStatus* status) {
     int waiting = 1;
     char key;
@@ -487,6 +558,13 @@ void sensorThread(IntersectionStatus* status) {
                 status->active = !(status->active);
                 waiting = 0;
                 break;
+            case 't':
+                status->boomGateDown = 1;                           // boom gate triggered
+                waiting = 0;                                        
+                break;
+            case 'b':
+                status->boomGateConnected = !(status->boomGateConnected); // boom gate communication toggle
+                break;
             case 'q':                                               // shutdown
                 status->active = !(status->active);
                 waiting = 0;
@@ -514,23 +592,29 @@ void singleStepState(IntersectionStatus* status) {
             case '3':
                 status->mode = OVERRIDE_MODE;
                 break;
-            case 'n':
+            case 'n':   // NS vehicle request
                 status->NS_Vehicle = 1;
                 break;
-            case 'e':
+            case 'e':   // EW vehicle request
                 status->EW_Vehicle = 1;
                 break;
-            case 'N':
+            case 'N':   // NS ped request
                 status->NS_Ped = 1;
                 break;
-            case 'E':
+            case 'E':   // EW ped request
                 status->EW_Ped = 1;
                 break;
-            case 'a':
+            case 'a':   // controller active/deactive
                 status->active = !(status->active);
                 break;
+            case 't':   // boom gate down/up
+                status->boomGateDown = 1;
+                break;
+            case 'b':   // boom gate communication toggle
+                status->boomGateConnected = !(status->boomGateConnected); 
+                break;
             case 'q':
-                IO = 0;
+                IO = 0; // quit program
                 break;
             }
         }
@@ -581,7 +665,8 @@ int main(void) {
     IntersectionStatus I1_status = { 
         1, 1, 0,            // ID, active, mode
         R, R, R, R, R, R,   // Light states
-        0, 0, 0, 0          // Sensor states
+        0, 0, 0, 0,          // Sensor states
+        0, 1                // Boom gate down, boom gate connected
     };
 
     // Print status once
