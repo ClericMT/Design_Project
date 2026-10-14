@@ -31,15 +31,18 @@ typedef struct _Mypulse {   // This replaced the standard:  typedef struct _puls
    _Int32t scoid;
 } msg_header_t;
 
-// This is where pedestrian/vehicle detection data is stored
 typedef struct {
-   msg_header_t hdr;
-   int ClientID;      		// our data (unique id from client)
-   int NS_Vehicle;          // north/south vehicle detected
-   int EW_Vehicle;          // east/west vehicle detected
-   int NS_Ped;              // north/south ped. crossing request
-   int EW_Ped;              // east/west ped. crossing request
-} local_sensor_data;
+    int NS_Vehicle;
+    int EW_Vehicle;
+    int NS_Ped;
+    int EW_Ped;
+} SensorData;
+
+typedef struct {
+    msg_header_t hdr;
+    int ClientID;
+    SensorData data;
+} SensorMessage;
 
 // This struct stores reply msg sent back to LocalController process
 typedef struct {
@@ -55,7 +58,7 @@ int main(int argc, char *argv[])
 	printf("_mysigval size= %d\n", sizeof(_mysigval));
 
 	printf("header size= %d\n", sizeof(msg_header_t));
-	printf("local_sensor_data size= %d\n", sizeof(local_sensor_data));
+	printf("SensorData size= %d\n", sizeof(SensorData));
 	printf("my_reply size= %d\n", sizeof(my_reply));
 
 	printf("This is A Client running\n");
@@ -71,38 +74,59 @@ int main(int argc, char *argv[])
 /*** Client code ***/
 int client(char *sname)
 {
-	// Instance of struct to hold data
-    local_sensor_data sensorData = { 0x22,600,0,0,0,0 }; // hdr type, ID, NS Vehicle, EW Vehicle, NS Ped., EW Ped.
+    SensorData sensorData = {0,1,2,3};
+    SensorMessage sensorMessage = {0};
 
-    my_reply reply; 								// replymsg structure for sending back to client
+    sensorMessage.hdr.type = 0x22;
+    sensorMessage.hdr.subtype = 0x00;
+    sensorMessage.ClientID = 600;
 
-    int server_coid;
+    my_reply reply = {0};
 
-    printf("  ---> Trying to connect to server named: %s\n", sname);
-    if ((server_coid = name_open(sname, 0)) == -1)
-    {
-        printf("\n    ERROR, could not connect to server!\n\n");
+    int server_coid = name_open(sname, 0);
+
+    if (server_coid == -1) {
+        perror("name_open");
         return EXIT_FAILURE;
     }
 
-    printf("Connection established to: %s\n", sname);
+    printf("Connected to: %s\n", sname);
 
-    // Console out what is going to be sent (sensor data)
-    printf("Client (ID:%d), sending data packet with the integer value: %d \n",
-    		sensorData.ClientID, sensorData.NS_Vehicle, sensorData.EW_Vehicle,
-			sensorData.NS_Ped, sensorData.EW_Ped);
-    fflush(stdout);
-    // Actually send the sensor data to LocalController via native message passing
-    if (MsgSend(server_coid, &sensorData, sizeof(sensorData), &reply, sizeof(reply)) == -1)
-	{
-		printf(" Error data NOT sent to server\n"); // maybe we did not get a reply from the server
-	}
-	else
-	{ // now process the reply
-		printf("   -->Reply is: '%s'\n", reply.buf);
-	}
+    while (1)
+    {
+        // Update sensorData here using keyboard inputs
 
-    sleep(5);
+        // Copy sensor state into outgoing message
+        sensorMessage.data = sensorData;
 
+        printf(
+            "Sending: NS Vehicle=%d, EW Vehicle=%d, "
+            "NS Ped=%d, EW Ped=%d\n",
+            sensorData.NS_Vehicle,
+            sensorData.EW_Vehicle,
+            sensorData.NS_Ped,
+            sensorData.EW_Ped
+        );
+
+        if (MsgSend(
+            server_coid,
+            &sensorMessage,
+            sizeof(sensorMessage),
+            &reply,
+            sizeof(reply)
+        ) == -1)
+        {
+            perror("MsgSend");
+        }
+        else
+        {
+            printf("Reply: %s\n", reply.buf);
+        }
+
+        sleep(5);
+    }
+
+    name_close(server_coid);
     return EXIT_SUCCESS;
 }
+
