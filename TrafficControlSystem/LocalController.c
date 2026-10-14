@@ -147,7 +147,7 @@ int server(void)
             continue;
         }
 
-
+        // Determine whether message is sensor data or central command
         switch (msg.hdr.type) {
         case MSG_SENSOR_DATA:
 				// Process sensor data

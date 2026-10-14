@@ -5,7 +5,6 @@
 
 #include "app.h"
 
-// #define LOCAL_ATTACH_POINT "LocalController" // use as attach point for passing messages between processes in same node
 #define QNET_ATTACH_POINT \
 	"/net/VM_x86_Target01/dev/name/local/LocalController" // use as attach point for passing mesages between processes in different nodes
 
@@ -39,6 +38,7 @@ int client(char *sname)
 
     int server_coid = name_open(sname, 0);
 
+    // Error handling
     if (server_coid == -1) {
         perror("name_open");
         return EXIT_FAILURE;

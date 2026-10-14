@@ -1,3 +1,5 @@
+// Add this to src for each program!
+
 #ifndef APP_H
 #define APP_H
 
@@ -83,7 +85,6 @@ typedef struct {
     IntersectionStatus intersectionStatus;
 } IntersectionStatusMessage;
 
-// reply message
 typedef struct {
    msg_header_t hdr;   // Custom header
    char buf[BUF_SIZE]; // Message to send back to send back to other thread
