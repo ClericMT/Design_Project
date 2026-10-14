@@ -17,6 +17,7 @@ Controls:
     'e': Vehicle approaches intersection from East/West
     'E': Pedestrian approaches intersection from East/West
     't': Train approaching, boom gate activated (10 sec)
+    'b': Toggle boomgate communication status
 
 Operational Modes: FIXED / SENSOR-DRIVEN / MANUAL-OVERRIDE
 
@@ -113,11 +114,12 @@ Assumptions:
         - All North-South Pedestrian Lights     (4x2 total) are connected to same circuit
         - All East-West Pedestrian Lights       (4x2 total) are connected to same circuit
     - Total of 40 Lights per intersection
+    - Railway system not included, just use central control commands to trigger boomgate events
 
 Real-time implementation:
     IPC messaging between nodes (lab 5)
     POSIX message queues between processes (lab 3)
-    Mutex/Semaphores/Cond Vars for thread synchronisation/locking
+    Mutex/Semaphores/Cond Vars (Lab 2) for thread synchronisation/locking
 
     - Central Control
         - Process A (Communications)
